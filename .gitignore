@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+.ppt_enhance_cache/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+data/samples/*.pptx
+data/samples/*_output/
+
+# macOS / 编辑器杂项
+.DS_Store
+*~
+~$*
+
+# 大体积真实样本（含版权/隐私，按需本地保留，不进仓库）
+data/samples/real_notebooklm.pdf
