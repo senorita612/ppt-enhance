@@ -1,127 +1,218 @@
 # PPT Enhance
 
-> 基于多模态解析与多智能体协同的高保真 PDF-to-PPTX 重建与智能纠错系统
+PPT Enhance is a PDF-to-PPTX reconstruction tool for slide decks exported from
+NotebookLM and similar AI tools. It extracts slide content, corrects risky OCR
+text, rebuilds editable PowerPoint files, evaluates conversion quality, and can
+generate Speaker Notes with an OpenAI-compatible model API.
 
-将 NotebookLM 等 AI 工具导出的 PDF 演示文稿，转换为**可编辑、已纠错、视觉保真**的 PowerPoint 文件。
+## Features
 
-## 核心特性
+- **Multiple parsers**: Docling for vector PDFs, Qwen-OCR for image-only PDFs,
+  and MinerU JSON import.
+- **Coordinate-locked PPTX rebuild**: text and images are placed back using the
+  original page coordinates, so the output stays close to the source layout.
+- **Controlled text correction**: contributor/reviewer agents correct OCR and
+  wording while protecting numbers and domain terms.
+- **Protected term extraction**: automatically detects important English terms,
+  acronyms, version strings, model names, and user-provided terms.
+- **Speaker Notes generation**: creates per-slide presenter scripts from slide
+  content and optional reference material, writes them into PPTX notes, and
+  exports JSON/Markdown copies.
+- **Quality evaluation**: SSIM, PSNR, CER, token error rate, editability ratio,
+  text change ratio, protected-term violations, numeric mismatches, text
+  overflow risk, overlap risk, and layout IoU when LibreOffice is available.
+- **Chinese font handling**: selects a platform-specific CJK font and writes the
+  PowerPoint East Asian font slot to reduce Chinese garbling in PowerPoint and
+  LibreOffice.
+- **Staged Streamlit UI**: parse once, review and edit SlideIR page by page,
+  preview a single regenerated page, then export the full PPTX.
 
-- **多模态解析** — Docling（矢量文本）/ Qwen-OCR（纯图片 PDF）/ MinerU JSON 三条解析通路，提取文本、bbox、图片
-- **多智能体纠错** — Contributor 提议 + Reviewer 审查，按修正类别（OCR 纠错 / 去 AI 腔润色）施加差异化阈值，防止过度纠正
-- **坐标锚定重建** — python-pptx 按原坐标注入，只改字不改框
-- **公式可编辑** — OCR 读成 LaTeX 的公式经 pandoc 转 PowerPoint 原生 OMML，可编辑且排版正确
-- **量化评测** — SSIM / PSNR / CER / 可编辑性 + 往返版面 IoU（避免自证的独立保真度测量）
+## Quick Start
 
-## 快速开始
-
-```bash
-# 安装
-cd PPT_enhance
-python -m venv .venv && source .venv/bin/activate
+```powershell
+cd D:\projects\projects\ppt-enhance
+python -m venv .venv
+.\.venv\Scripts\activate
 pip install -e ".[dev]"
+copy .env.example .env
+```
 
-# 配置 API（可选，无 API 时使用规则纠错）
-cp .env.example .env
+Start the Streamlit UI:
 
-# 生成测试 PDF
-python scripts/create_sample_pdf.py
+```powershell
+.\.venv\Scripts\streamlit.exe run ppt_enhance\ui\app.py
+```
 
-# 命令行转换
-ppt-enhance data/samples/sample_slides.pdf
+If the default port is occupied:
 
-# 纯图片 PDF（如 NotebookLM 导出）走 OCR 通路
+```powershell
+.\.venv\Scripts\streamlit.exe run ppt_enhance\ui\app.py --server.port 8503
+```
+
+## API Configuration
+
+The project uses OpenAI-compatible chat completions for correction and Speaker
+Notes. Without an API key, text correction and notes generation fall back to
+local rule-based behavior.
+
+Create `.env` from `.env.example` and set:
+
+```env
+OPENAI_API_KEY=your_api_key
+OPENAI_BASE_URL=https://api.siliconflow.cn/v1
+OPENAI_MODEL=deepseek-ai/DeepSeek-V3
+```
+
+Other common examples:
+
+```env
+# DeepSeek
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+OPENAI_MODEL=deepseek-chat
+
+# DashScope OpenAI-compatible endpoint
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+OPENAI_MODEL=qwen-plus
+
+# OpenAI
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
+```
+
+For Qwen-OCR, `OPENAI_API_KEY` should be a DashScope API key because that parser
+uses the DashScope multimodal OCR SDK.
+
+LibreOffice is optional but recommended for reliable PPTX rendering and visual
+evaluation. If it is not found automatically, set one of:
+
+```env
+SOFFICE_PATH=C:\Program Files\LibreOffice\program\soffice.exe
+LIBREOFFICE_PATH=C:\Program Files\LibreOffice
+```
+
+## Streamlit Workflow
+
+The UI is split into stages to avoid repeatedly running slow parsing work:
+
+1. Upload a PDF and click **解析并进入人工校对**.
+2. In **逐页预览与校对**, inspect the source page, edit extracted text, and view
+   per-page risk metrics.
+3. Click **快速重生成当前页预览** to rebuild and render only the selected page.
+4. In **生成与评估**, export the full PPTX from the current edited SlideIR.
+5. Turn on full quality evaluation only when you need SSIM/PSNR/layout IoU,
+   because it requires PPTX rendering through LibreOffice.
+
+The UI stores session files under `.ppt_enhance_cache/ui_sessions/`, so page
+switching and repeated exports reuse the parsed intermediate data.
+
+## CLI Usage
+
+Basic conversion:
+
+```powershell
+ppt-enhance input.pdf
+```
+
+Image-only PDF with OCR:
+
+```powershell
 ppt-enhance input.pdf --parser qwen-ocr
-
-# Web 界面
-streamlit run ppt_enhance/ui/app.py
 ```
 
-### CLI 参数
+Use MinerU JSON:
 
-| 参数 | 说明 |
-|------|------|
-| `--parser {docling,qwen-ocr}` | 解析器：矢量文本用 docling，纯图片 PDF 用 qwen-ocr |
-| `--mineru-json PATH` | 复用 MinerU JSON（兼容 NotebookLM2PPT 格式） |
-| `--no-correction` | 跳过智能纠错 |
-| `--no-eval` | 跳过质量评测 |
-| `--dpi N` | 渲染 DPI（默认 150） |
-| `--no-background` | 关闭整页背景图模式 |
-| `--ground-truth PATH` | 提供 ground truth 文本以计算 CER |
-
-## 项目结构
-
+```powershell
+ppt-enhance input.pdf --mineru-json mineru.json
 ```
+
+Generate Speaker Notes:
+
+```powershell
+ppt-enhance input.pdf --speaker-notes --notes-material notes.md --notes-seconds 75
+```
+
+Protect extra domain terms:
+
+```powershell
+ppt-enhance input.pdf --protected-term "NotebookLM" --protected-term "Self-Attention"
+```
+
+Useful flags:
+
+| Flag | Description |
+| --- | --- |
+| `--parser {docling,qwen-ocr}` | Choose parser. Use `qwen-ocr` for image-only PDFs. |
+| `--mineru-json PATH` | Import MinerU JSON instead of parser output. |
+| `--no-correction` | Skip intelligent correction. |
+| `--no-eval` | Skip quality evaluation for faster conversion. |
+| `--dpi N` | Render DPI, default `150`. |
+| `--no-background` | Disable full-page background mode. |
+| `--ground-truth PATH` | Provide reference text for CER/token error rate. |
+| `--protected-term TERM` | Add protected terms. Can be repeated. |
+| `--speaker-notes` | Generate PPTX Speaker Notes. |
+| `--notes-material PATH` | Add reference material for notes. Can be repeated. |
+| `--notes-seconds N` | Target speaking time per slide. |
+| `--notes-style TEXT` | Notes style, such as `课程讲解` or `商务汇报`. |
+
+## Outputs
+
+For an input named `deck.pdf`, the pipeline writes output files under
+`deck_output/` by default:
+
+- `deck_enhanced.pptx`: rebuilt editable PowerPoint deck.
+- `slide_ir.json`: parsed intermediate representation.
+- `slide_ir_corrected.json`: representation after correction.
+- `slide_ir_final.json`: final edited representation from the UI.
+- `eval_report.json`: quality metrics when evaluation is enabled.
+- `speaker_notes.json`: structured Speaker Notes result.
+- `speaker_notes.md`: Markdown export of the notes.
+
+## Project Structure
+
+```text
 ppt_enhance/
-├── schemas/      # SlideIR 中间表示 + SlideOutline 语义大纲
-├── parser/       # Docling / Qwen-OCR / MinerU / PDF 渲染 / 大纲逆推
-├── agents/       # Contributor + Reviewer 多智能体纠错
-├── builder/      # python-pptx 重建 + 布局引擎 + 公式 OMML 渲染
-├── eval/         # SSIM / PSNR / CER / 往返版面 IoU / 检测框可视化
-├── pipeline/     # 主流水线编排
-└── ui/           # Streamlit 界面
+├── agents/       # contributor/reviewer correction agents and LLM client
+├── builder/      # PPTX builder, layout engine, fonts, formula rendering
+├── eval/         # visual/text/layout quality metrics and render helpers
+├── nlp/          # protected term extraction
+├── notes/        # Speaker Notes generation and PPTX note writing
+├── parser/       # Docling, Qwen-OCR, MinerU, PDF rendering
+├── pipeline/     # end-to-end pipeline orchestration
+├── schemas/      # SlideIR and semantic outline schemas
+└── ui/           # Streamlit app
 ```
 
-## 当前进展
+## Current Status
 
-端到端流水线已跑通：`PDF → 解析 → 多智能体纠错 → 重建 PPTX → 量化评测`，6 个 pytest 全过。
+Implemented:
 
-**已实现**
-- ✅ 三条解析通路：Docling（矢量）、Qwen-OCR（纯图片 PDF，绝对像素坐标）、MinerU JSON 导入
-- ✅ 坐标锚定重建（`pptx_builder`）：按源坐标注入文本，只改字不改框，已接入主流水线
-- ✅ 双 Agent 受控纠错：OCR 纠错走绝对字符差阈值、去 AI 腔润色走比例阈值；跨全文档术语表上下文；无 API key 时规则兜底
-- ✅ 公式处理：LaTeX → pandoc → OMML 原生可编辑公式
-- ✅ 评测体系：SSIM / PSNR / 可编辑性 / CER，外加往返版面 IoU（PPTX 经 LibreOffice 渲染回 PDF 再独立重提坐标，避免循环论证）
-- ✅ 渲染可靠性标记：无 LibreOffice 时回退占位图并标 `visual_reliable=False`，绝不伪造数值
-- ✅ Streamlit Web 界面：上传 PDF、配置选项、下载 PPTX/JSON、查看指标与纠错记录
-- ✅ 检测框可视化：把 OCR 定位框画回原图，人工核对坐标对齐
+- Docling, Qwen-OCR, and MinerU parsing paths.
+- Coordinate-locked PPTX generation.
+- Controlled correction with reviewer safeguards.
+- Automatic and manual protected-term protection.
+- Numeric mismatch detection.
+- Enhanced text/layout evaluation metrics.
+- LibreOffice detection on Windows and common environment variables.
+- Cross-platform CJK font selection and East Asian font XML writing.
+- Speaker Notes generation, PPTX injection, JSON export, and Markdown export.
+- Streamlit staged review UI with page-level editing and current-page preview.
 
-**部分实现 / 实验中**
-- 🟡 大纲逆推重建路线（`outline_extractor` + `layout_engine`）：不逆向像素而逆向到「生成这页时的语义大纲」，再用原生 PPT 元素重画，得到更干净、100% 可编辑的版面。目前仅在 `scripts/batch_outline.py`、`scripts/render_full.py` 中跑，**尚未接入主流水线**，未与坐标锚定路线做统一切换。
+Still useful next steps:
 
-## 未实现 / 路线图
+- Make the semantic outline reconstruction path selectable from the main
+  pipeline.
+- Add model connection testing and model selection inside the UI.
+- Add batch processing and resumable jobs.
+- Add stronger template/style presets for business, teaching, and defense decks.
+- Add per-slide Speaker Notes regeneration and manual notes editing in the UI.
 
-按价值优先级排列：
+## Development
 
-1. **演讲稿生成（规划中，下一步重点）** — 结合用户上传的补充资料 + 各页 PPT 内容，为每页撰写演讲稿，写入 PPTX 的 Speaker Notes。当前代码中无任何 notes 相关实现。详见下方「演讲稿生成」规划。
-2. **UI 界面增强（规划中）** — 在现有 Streamlit 基础上扩展：资料上传、逐页预览、演讲稿编辑与导出。详见下方「UI 规划」。
-3. **大纲逆推路线接入主流水线** — 把实验中的语义大纲重建作为可选模式（如 `--mode {anchor,outline}`），与坐标锚定路线统一切换。
-4. **Layout Validator（美学验证器）** — 文本溢出 / 元素碰撞检测，对标 AeSlides。
-5. **编辑动作指令范式** — 让 Agent 输出结构化编辑动作而非直接改文本，对标 PPTAgent。
-6. **CER 消融实验** — 量化纠错各环节对最终准确率的贡献，用于课程报告。
+Run tests:
 
-## 演讲稿生成（规划中）
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+```
 
-目标：用户上传补充资料（背景文档、要点提纲、口径要求等），系统结合每页 PPT 的结构化内容，为每页生成演讲稿并写入 Speaker Notes，导出可直接放映。
-
-设计要点（待实现）：
-- **输入**：已重建的 SlideIR（含每页文本/标题/逻辑结构） + 用户上传的补充资料（txt/md/pdf/docx）。
-- **检索增强**：补充资料切块后按页内容做相关性召回，避免把全文塞进每页 prompt。
-- **生成 Agent**：逐页生成讲稿，控制时长口径（如每页 60–90 秒）、衔接上一页、保留专名与数字。
-- **落地**：写入 `python-pptx` 的 `slide.notes_slide.notes_text_frame`，并在 Streamlit 中支持逐页查看/编辑/重生成。
-- **可选**：整篇讲稿导出为 Markdown / Word；估算总时长。
-
-## UI 规划
-
-在现有 Streamlit 界面（上传 / 配置 / 下载 / 指标 / 纠错记录）基础上扩展：
-- 资料上传区（演讲稿用补充材料）。
-- 逐页预览：原图 vs 重建效果对照。
-- 演讲稿面板：每页讲稿展示、手动编辑、单页重生成、整篇导出。
-- 参数预设：针对不同场景（学术 / 商业 / 教学）的纠错与讲稿风格预设。
-
-## 与 NotebookLM2PPT 对比
-
-| 维度 | NotebookLM2PPT | PPT Enhance |
-|------|----------------|-------------|
-| 平台 | 仅 Windows | 跨平台 |
-| 解析 | 微软电脑管家黑盒 OCR | Docling / Qwen-OCR / MinerU 三通路 |
-| 纠错 | 无 | 多智能体受控纠错 |
-| 公式 | 无 | LaTeX → OMML 可编辑公式 |
-| 评测 | 人工目视 | SSIM/PSNR/CER + 往返版面 IoU |
-| 演讲稿 | 无 | 规划中（结合用户资料生成 Speaker Notes） |
-
-## 课程项目说明
-
-本项目面向「文本分析与大语言模型」课程期末大作业，强调：
-1. 大模型系统设计（多智能体协作）
-2. 业务工具开发（PDF→PPT 办公场景）
-3. 量化评估（SSIM 视觉保真 + CER 文字准确率 + 往返版面 IoU）
+The current test suite covers correction safeguards, protected terms, metrics,
+font XML writing, and Speaker Notes generation/writing.

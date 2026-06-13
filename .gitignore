@@ -19,3 +19,4 @@ data/samples/*_output/
 
 # 大体积真实样本（含版权/隐私，按需本地保留，不进仓库）
 data/samples/real_notebooklm.pdf
+real_notebooklm.pdf

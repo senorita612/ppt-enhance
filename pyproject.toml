@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ppt-enhance"
 version = "0.1.0"
-description = "高保真 PDF-to-PPTX 重建与多智能体智能纠错系统"
+description = "PDF-to-PPTX reconstruction with correction, evaluation, and speaker notes"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
