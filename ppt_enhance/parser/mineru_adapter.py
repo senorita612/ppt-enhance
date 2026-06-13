@@ -6,6 +6,7 @@ import json
 import uuid
 from pathlib import Path
 
+from ppt_enhance.nlp.protected_terms import extract_protected_terms
 from ppt_enhance.parser.pdf_renderer import get_page_size, render_pdf_pages
 from ppt_enhance.schemas.slide_ir import BBox, ElementType, SlideElement, SlideIR, SlidePage
 
@@ -122,6 +123,6 @@ def parse_with_mineru(
         parser="mineru",
         dpi=dpi,
         pages=pages,
-        protected_terms=[],
+        protected_terms=extract_protected_terms(all_texts),
         metadata={"mineru_json": str(mineru_json_path)},
     )

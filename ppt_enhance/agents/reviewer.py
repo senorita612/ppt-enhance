@@ -81,6 +81,14 @@ def _violates_protected(corrected: str, protected_terms: list[str], original: st
     return False
 
 
+def _extract_numbers(text: str) -> list[str]:
+    return re.findall(r"[-+]?\d+(?:\.\d+)?%?", text)
+
+
+def _violates_numbers(corrected: str, original: str) -> bool:
+    return _extract_numbers(original) != _extract_numbers(corrected)
+
+
 # OCR 短文本：长度 ≤ 该阈值时，改用绝对字符差判定
 _SHORT_TEXT_LEN = 8
 _SHORT_TEXT_MAX_EDITS = 4
@@ -110,8 +118,8 @@ def _rule_review(
         if _violates_protected(corrected, protected_terms, original):
             rejected.append({**p, "reject_reason": "触及受保护专有名词"})
             continue
-        if re.search(r"\d", original) and not re.search(r"\d", corrected):
-            rejected.append({**p, "reject_reason": "数字被删除"})
+        if _violates_numbers(corrected, original):
+            rejected.append({**p, "reject_reason": "数字被改动"})
             continue
 
         if ctype == CorrectionType.FLUENCY.value:

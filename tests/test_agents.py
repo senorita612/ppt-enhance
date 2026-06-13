@@ -25,3 +25,27 @@ def test_reviewer_rejects_large_edit():
     }]
     result = review_corrections(proposals, [], max_edit_ratio=0.15)
     assert "e1" not in result.accepted
+
+
+def test_reviewer_rejects_protected_term_removal():
+    proposals = [{
+        "id": "e1",
+        "original": "Transformer 架构",
+        "corrected": "模型架构",
+        "reason": "test",
+    }]
+    result = review_corrections(proposals, ["Transformer"], max_edit_ratio=0.8)
+    assert "e1" not in result.accepted
+    assert result.rejected[0]["reject_reason"] == "触及受保护专有名词"
+
+
+def test_reviewer_rejects_number_change():
+    proposals = [{
+        "id": "e1",
+        "original": "GPT-4 在 2023 年发布",
+        "corrected": "GPT-4 在 2024 年发布",
+        "reason": "test",
+    }]
+    result = review_corrections(proposals, ["GPT-4"], max_edit_ratio=0.8)
+    assert "e1" not in result.accepted
+    assert result.rejected[0]["reject_reason"] == "数字被改动"

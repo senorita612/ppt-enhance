@@ -14,6 +14,8 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
+from ppt_enhance.builder.font_utils import set_run_cjk_font
+
 SLIDE_W = 13.333
 SLIDE_H = 7.5
 
@@ -145,7 +147,7 @@ def _textbox(slide, text, l, t, w, h, *, size, color, bold=False,
     r.font.size = Pt(size)
     r.font.bold = bold
     r.font.italic = italic
-    r.font.name = "PingFang SC"
+    set_run_cjk_font(r)
     r.font.color.rgb = _hex(color, (255, 255, 255))
     return tb
 
@@ -268,13 +270,15 @@ def _fill_card_text(shape, node, text_color, accent, style):
         p = tf.paragraphs[0]
         r = p.add_run(); r.text = node.heading
         r.font.size = Pt(sized("heading")); r.font.bold = True
-        r.font.color.rgb = _hex(accent, (39, 166, 139)); r.font.name = style.font_name
+        r.font.color.rgb = _hex(accent, (39, 166, 139))
+        set_run_cjk_font(r, style.font_name)
         first = False
     if node.subtext:
         p = tf.paragraphs[0] if first else tf.add_paragraph()
         r = p.add_run(); r.text = node.subtext
         r.font.size = Pt(sized("subtext")); r.font.italic = True
-        r.font.color.rgb = _hex(text_color, (210, 210, 210)); r.font.name = style.font_name
+        r.font.color.rgb = _hex(text_color, (210, 210, 210))
+        set_run_cjk_font(r, style.font_name)
         first = False
     for bl in body_lines:
         if not bl.text.strip():
@@ -287,7 +291,8 @@ def _fill_card_text(shape, node, text_color, accent, style):
             continue  # 成功插入 OMML 公式
         r = p.add_run(); r.text = bl.text
         r.font.size = Pt(sized("body"))
-        r.font.color.rgb = _hex(text_color, (230, 230, 230)); r.font.name = style.font_name
+        r.font.color.rgb = _hex(text_color, (230, 230, 230))
+        set_run_cjk_font(r, style.font_name)
 
 
 def _add_formula_run(paragraph, latex_text, text_color) -> bool:
@@ -381,7 +386,8 @@ def _multiline_textbox(slide, lines, l, t, w, h, *, size, color, bold=False,
         p.line_spacing = 1.12
         r = p.add_run(); r.text = line
         r.font.size = Pt(size); r.font.bold = bold; r.font.italic = italic
-        r.font.name = "PingFang SC"; r.font.color.rgb = _hex(color, (255, 255, 255))
+        set_run_cjk_font(r)
+        r.font.color.rgb = _hex(color, (255, 255, 255))
     return tb
 
 
@@ -546,7 +552,7 @@ def _style_table_cell(cell, text, *, is_header, style, text_color):
         for r in p.runs:
             r.font.size = Pt(12.5 if is_header else 11.5)
             r.font.bold = is_header
-            r.font.name = style.font_name
+            set_run_cjk_font(r, style.font_name)
             r.font.color.rgb = _hex(text_color, (235, 235, 235))
 
 
@@ -694,4 +700,5 @@ def render_outline_to_slide(prs, outline) -> None:
         tf = bar.text_frame; tf.word_wrap = True; tf.vertical_anchor = MSO_ANCHOR.MIDDLE
         p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
         r = p.add_run(); r.text = outline.footer_note
-        r.font.size = Pt(11); r.font.color.rgb = _hex(outline.text_color); r.font.name = style.font_name
+        r.font.size = Pt(11); r.font.color.rgb = _hex(outline.text_color)
+        set_run_cjk_font(r, style.font_name)

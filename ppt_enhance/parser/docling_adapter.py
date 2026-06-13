@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import uuid
 from pathlib import Path
 
@@ -11,6 +10,7 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
 from ppt_enhance.parser.pdf_renderer import get_page_size, render_pdf_pages
+from ppt_enhance.nlp.protected_terms import extract_protected_terms
 from ppt_enhance.schemas.slide_ir import BBox, ElementType, SlideElement, SlideIR, SlidePage
 
 
@@ -90,15 +90,8 @@ def _bbox_from_prov(prov, page_sizes: dict[int, tuple[float, float]], dpi: int) 
 
 
 def _extract_protected_terms(texts: list[str]) -> list[str]:
-    """从文本中抽取可能的专有名词（大写词组、中英文混合词）."""
-    terms: set[str] = set()
-    for text in texts:
-        for m in re.finditer(r"[A-Z][A-Za-z0-9\-]{2,}", text):
-            terms.add(m.group())
-        for m in re.finditer(r"[\u4e00-\u9fff]{2,4}(?:模型|算法|框架|系统|平台|网络|因子)", text):
-            # 仅收录紧凑术语；OCR 截断碎片（如"捉的系统"）因后缀前非连续 2~4 汉字而被排除
-            terms.add(m.group())
-    return sorted(terms)[:50]
+    """Backward-compatible wrapper for parser modules."""
+    return extract_protected_terms(texts)
 
 
 def parse_with_docling(

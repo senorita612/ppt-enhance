@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 
 import fitz
@@ -34,11 +36,36 @@ def pptx_to_images(
     return _fallback_render(pptx_path, output_dir), False, None
 
 
+def _find_libreoffice() -> str | None:
+    """Return a LibreOffice executable path if one is available."""
+    env_candidates = [
+        os.getenv("SOFFICE_PATH"),
+        os.getenv("LIBREOFFICE_PATH"),
+    ]
+    path_candidates = [
+        shutil.which("soffice"),
+        shutil.which("libreoffice"),
+        r"C:\Program Files\LibreOffice\program\soffice.exe",
+        r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+    ]
+
+    for candidate in [*env_candidates, *path_candidates]:
+        if not candidate:
+            continue
+        p = Path(candidate)
+        if p.is_file():
+            return str(p)
+        if p.is_dir():
+            exe = p / "program" / "soffice.exe"
+            if exe.is_file():
+                return str(exe)
+    return None
+
+
 def _try_libreoffice_convert(pptx_path: Path, pdf_path: Path) -> bool:
-    import shutil
     import subprocess
 
-    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    soffice = _find_libreoffice()
     if not soffice:
         return False
     try:
